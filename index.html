@@ -917,8 +917,7 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
   import { getFirestore, collection, addDoc, serverTimestamp }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-  import { getStorage, ref, uploadBytes, getDownloadURL }
-    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+
 
   // ==========================================
   // 🔧 הכנס כאן את פרטי Firebase שלך
@@ -936,22 +935,20 @@
 
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
-  const storage = getStorage(app);
-
-  // Files map
-  const uploadedFiles = {};
-
   function getFileInput(uploadId) {
     return document.querySelector(`#${uploadId} input[type="file"]`);
   }
 
-  async function uploadFile(fieldId, folder) {
+  async function uploadFile(fieldId) {
     const input = getFileInput(fieldId);
     if (!input || !input.files[0]) return null;
     const file = input.files[0];
-    const storRef = ref(storage, `vendors/${folder}/${Date.now()}_${file.name}`);
-    await uploadBytes(storRef, file);
-    return await getDownloadURL(storRef);
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve({ name: file.name, type: file.type, data: reader.result });
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
   }
 
   window._submitToFirebase = async function() {
@@ -959,12 +956,12 @@
     try {
       // Upload files
       const fileUrls = {};
-      fileUrls.bankDoc      = await uploadFile('bank-upload', 'bank');
-      fileUrls.booksDoc     = await uploadFile('books-upload', 'books');
-      fileUrls.taxDoc       = await uploadFile('tax-upload', 'tax');
-      fileUrls.invoiceDoc   = await uploadFile('invoice-upload', 'invoice');
-      fileUrls.affidavitDoc = await uploadFile('affidavit-upload', 'affidavit');
-      fileUrls.cashDoc      = await uploadFile('cash-upload', 'cash');
+      fileUrls.bankDoc      = await uploadFile('bank-upload');
+      fileUrls.booksDoc     = await uploadFile('books-upload');
+      fileUrls.taxDoc       = await uploadFile('tax-upload');
+      fileUrls.invoiceDoc   = await uploadFile('invoice-upload');
+      fileUrls.affidavitDoc = await uploadFile('affidavit-upload');
+      fileUrls.cashDoc      = await uploadFile('cash-upload');
 
       // Signature
       const canvas = document.getElementById('sigCanvas');
@@ -1023,10 +1020,10 @@
           bank_name:     data.bank.name,
           bank_branch:   data.bank.branch,
           bank_account:  data.bank.account,
-          file_bank:     fileUrls.bankDoc    || 'לא הועלה',
-          file_books:    fileUrls.booksDoc   || 'לא הועלה',
-          file_tax:      fileUrls.taxDoc     || 'לא הועלה',
-          file_invoice:  fileUrls.invoiceDoc || 'לא הועלה',
+          file_bank:     fileUrls.bankDoc?.name    || 'לא הועלה',
+          file_books:    fileUrls.booksDoc?.name   || 'לא הועלה',
+          file_tax:      fileUrls.taxDoc?.name     || 'לא הועלה',
+          file_invoice:  fileUrls.invoiceDoc?.name || 'לא הועלה',
           sign_date:     data.signDate,
           name:          data.businessName,
         });

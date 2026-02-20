@@ -906,6 +906,12 @@
   <div class="spinner"></div>
 </div>
 
+<!-- EmailJS -->
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script>
+  emailjs.init('scrflcwfZTNl72nYy');
+</script>
+
 <!-- Firebase SDK -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -997,6 +1003,36 @@
       };
 
       const docRef = await addDoc(collection(db, 'vendors'), data);
+
+      // שליחת מייל עם EmailJS
+      try {
+        await emailjs.send('service_acob49b', 'template_d8vvd3g', {
+          business_name: data.businessName,
+          osek:          data.osekMorsheh,
+          nikuyim:       data.nikuyim,
+          business_type: data.businessType,
+          main_domain:   data.mainDomain,
+          sub_domain:    data.subDomain,
+          street:        data.address.street,
+          house:         data.address.house,
+          city:          data.address.city,
+          zip:           data.address.zip,
+          email:         data.contact.email,
+          phone:         data.contact.phone,
+          mobile:        data.contact.mobile,
+          bank_name:     data.bank.name,
+          bank_branch:   data.bank.branch,
+          bank_account:  data.bank.account,
+          file_bank:     fileUrls.bankDoc    || 'לא הועלה',
+          file_books:    fileUrls.booksDoc   || 'לא הועלה',
+          file_tax:      fileUrls.taxDoc     || 'לא הועלה',
+          file_invoice:  fileUrls.invoiceDoc || 'לא הועלה',
+          sign_date:     data.signDate,
+          name:          data.businessName,
+        });
+      } catch(emailErr) {
+        console.warn('Email sending failed:', emailErr);
+      }
 
       showLoading(false);
       document.getElementById('ref-number').textContent = 'מספר פנייה: ' + docRef.id.substring(0,8).toUpperCase();

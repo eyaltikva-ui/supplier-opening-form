@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+h<!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
 <meta charset="UTF-8">
@@ -993,7 +993,7 @@
       const payload = { action:'submitZip', businessName:businessName, zipBase64:zipBase64 };
       const gsResp = await fetch('https://script.google.com/macros/s/AKfycbx-uP9SpZXWgCB0hl2Ftnks_IBukekWbQ30jJBpuFDExGRbYIG2adjg5nmqHw8s9CcU/exec', {method:'POST', body:JSON.stringify(payload)});
       const gsResult = await gsResp.json();
-      if (gsResult.status==='ok'||gsResult.success) { showPanel('panel-success'); }
+      if (gsResult.status==='ok'||gsResult.success) { showPanel('success'); }
       else { alert('Error: ' + (gsResult.message||'try again')); }
     } catch(err) { console.error(err); alert('Error: ' + err.message); }
   };

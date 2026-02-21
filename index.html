@@ -906,12 +906,6 @@
   <div class="spinner"></div>
 </div>
 
-<!-- EmailJS -->
-<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
-<script>
-  emailjs.init('scrflcwfZTNl72nYy');
-</script>
-
 <!-- Firebase SDK -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -1001,32 +995,35 @@
 
       const docRef = await addDoc(collection(db, 'vendors'), data);
 
-      // שליחת מייל עם EmailJS
+      // שליחת מייל עם קבצים מצורפים דרך Web3Forms
       try {
-        await emailjs.send('service_acob49b', 'template_d8vvd3g', {
-          business_name: data.businessName,
-          osek:          data.osekMorsheh,
-          nikuyim:       data.nikuyim,
-          business_type: data.businessType,
-          main_domain:   data.mainDomain,
-          sub_domain:    data.subDomain,
-          street:        data.address.street,
-          house:         data.address.house,
-          city:          data.address.city,
-          zip:           data.address.zip,
-          email:         data.contact.email,
-          phone:         data.contact.phone,
-          mobile:        data.contact.mobile,
-          bank_name:     data.bank.name,
-          bank_branch:   data.bank.branch,
-          bank_account:  data.bank.account,
-          file_bank:     fileUrls.bankDoc?.name    || 'לא הועלה',
-          file_books:    fileUrls.booksDoc?.name   || 'לא הועלה',
-          file_tax:      fileUrls.taxDoc?.name     || 'לא הועלה',
-          file_invoice:  fileUrls.invoiceDoc?.name || 'לא הועלה',
-          sign_date:     data.signDate,
-          name:          data.businessName,
-        });
+        const formData = new FormData();
+        formData.append('access_key', 'a45bc7cf-5c70-4f5e-ac64-fdf1b0841b9c');
+        formData.append('subject', 'בקשת פתיחת ספק חדש - ' + data.businessName);
+        formData.append('from_name', 'מערכת פתיחת ספק | עיריית רמת גן');
+        const bodyText = [
+          'שם העסק: ' + data.businessName,
+          'עוסק מורשה: ' + data.osekMorsheh,
+          'מס תיק ניכויים: ' + data.nikuyim,
+          'מהות העסק: ' + data.businessType,
+          'תחום ראשי: ' + data.mainDomain,
+          'כתובת: ' + data.address.street + ' ' + data.address.house + ', ' + data.address.city,
+          'אימייל: ' + data.contact.email,
+          'טלפון: ' + data.contact.phone,
+          'בנק: ' + data.bank.name + ' סניף: ' + data.bank.branch + ' חשבון: ' + data.bank.account,
+          'תאריך: ' + data.signDate,
+          'מספר פנייה: ' + docRef.id.substring(0,8).toUpperCase()
+        ].join('\n');
+        formData.append('message', bodyText);
+        for (const [key, label] of [['bankDoc','אישור_בנק'],['booksDoc','ניהול_ספרים'],['taxDoc','ניכוי_מס'],['invoiceDoc','חשבונית'],['affidavitDoc','תצהיר'],['cashDoc','בסיס_מזומן']]) {
+          const f = fileUrls[key];
+          if (f?.data) {
+            const blob = await (await fetch(f.data)).blob();
+            formData.append('attachment[]', blob, label + '_' + f.name);
+          }
+        }
+        const w3 = await (await fetch('https://api.web3forms.com/submit', { method: 'POST', body: formData })).json();
+        if (!w3.success) console.warn('Web3Forms:', w3);
       } catch(emailErr) {
         console.warn('Email sending failed:', emailErr);
       }

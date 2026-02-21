@@ -952,10 +952,11 @@
   }
   window._submitToFirebase = async function() {
     try {
-      showLoader(true);
+      // Collect files into memory
       window._pendingFiles = {};
       const fileIds = ['bank-upload','books-upload','tax-upload','invoice-upload','affidavit-upload','cash-upload'];
       for (const fid of fileIds) { await uploadFile(fid); }
+      // Build details text
       const detailsLines = [
         '=== details ===',
         'businessName: ' + v('f-business-name'),
@@ -992,10 +993,9 @@
       const payload = { action:'submitZip', businessName:businessName, zipBase64:zipBase64 };
       const gsResp = await fetch('https://script.google.com/macros/s/AKfycbx-uP9SpZXWgCB0hl2Ftnks_IBukekWbQ30jJBpuFDExGRbYIG2adjg5nmqHw8s9CcU/exec', {method:'POST', body:JSON.stringify(payload)});
       const gsResult = await gsResp.json();
-      showLoader(false);
       if (gsResult.status==='ok'||gsResult.success) { showPanel('panel-success'); }
       else { alert('Error: ' + (gsResult.message||'try again')); }
-    } catch(err) { showLoader(false); console.error(err); alert('Error: ' + err.message); }
+    } catch(err) { console.error(err); alert('Error: ' + err.message); }
   };
 
   function v(id) {

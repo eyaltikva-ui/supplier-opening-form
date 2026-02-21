@@ -512,6 +512,8 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 </style>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body>
 
@@ -939,100 +941,61 @@
     const file = input.files[0];
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => resolve({ name: file.name, type: file.type, data: reader.result });
+      reader.onload = () => {
+        window._pendingFiles = window._pendingFiles || {};
+        window._pendingFiles[fieldId] = { name: file.name, dataUrl: reader.result, type: file.type };
+        resolve(fieldId);
+      };
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
   }
-
   window._submitToFirebase = async function() {
-    showLoading(true);
     try {
-      // Upload files
-      const fileUrls = {};
-      fileUrls.bankDoc      = await uploadFile('bank-upload');
-      fileUrls.booksDoc     = await uploadFile('books-upload');
-      fileUrls.taxDoc       = await uploadFile('tax-upload');
-      fileUrls.invoiceDoc   = await uploadFile('invoice-upload');
-      fileUrls.affidavitDoc = await uploadFile('affidavit-upload');
-      fileUrls.cashDoc      = await uploadFile('cash-upload');
-
-      // Signature
+      showLoader(true);
+      window._pendingFiles = {};
+      const fileIds = ['bank-upload','books-upload','tax-upload','invoice-upload','affidavit-upload','cash-upload'];
+      for (const fid of fileIds) { await uploadFile(fid); }
+      const detailsLines = [
+        '=== details ===',
+        'businessName: ' + v('f-business-name'),
+        'osek: ' + v('f-osek'),
+        'nikuyim: ' + v('f-nikuyim'),
+        'businessType: ' + v('f-business-type'),
+        'street: ' + v('f-street') + ' ' + v('f-house'),
+        'city: ' + v('f-city') + ' zip: ' + v('f-zip'),
+        'email: ' + v('f-email'),
+        'phone: ' + v('f-phone'),
+        'mobile: ' + v('f-mobile'),
+        'bankName: ' + v('f-bank-name'),
+        'bankBranch: ' + v('f-bank-branch'),
+        'bankAccount: ' + v('f-bank-account'),
+        'kinship: ' + (document.querySelector('input[name="kinship"]:checked')?.value||'')
+      ];
+      const detailsTxt = detailsLines.join('\n');
       const canvas = document.getElementById('sigCanvas');
-      const signatureData = canvas.toDataURL('image/png');
-
-      // Gather data
-      const data = {
-        businessName:  v('f-business-name'),
-        osekMorsheh:   v('f-osek'),
-        nikuyim:       v('f-nikuyim'),
-        nikuyDate:     v('f-nikuy-date'),
-        businessType:  v('f-business-type'),
-        address: {
-          street: v('f-street'), house: v('f-house'),
-          city: v('f-city'), zip: v('f-zip'), poBox: v('f-po-box')
-        },
-        contact: {
-          email: v('f-email'), phone: v('f-phone'),
-          mobile: v('f-mobile'), fax: v('f-fax')
-        },
-        bank: {
-          name: v('f-bank-name'), branch: v('f-bank-branch'),
-          address: v('f-bank-address'), zip: v('f-bank-zip'),
-          account: v('f-bank-account')
-        },
-        kinship:     document.querySelector('input[name="kinship"]:checked')?.value || '',
-        engineering: document.querySelector('input[name="engineering"]:checked')?.value || '',
-        cashBasis:   document.querySelector('input[name="cashbasis"]:checked')?.value || '',
-        mainDomain:  v('f-main-domain'),
-        subDomain:   v('f-sub-domain'),
-        signDate:    v('f-sign-date'),
-        signature:   signatureData,
-        files:       fileUrls,
-        submittedAt: serverTimestamp(),
-        status: 'pending'
-      };
-
-      const docRef = await addDoc(collection(db, 'vendors'), data);
-
-      // שליחת קבצים ל-Google Drive ומייל דרך Apps Script
-      try {
-        const payload = {
-          businessName: data.businessName,
-          osekMorsheh: data.osekMorsheh,
-          nikuyim: data.nikuyim,
-          businessType: data.businessType,
-          mainDomain: data.mainDomain,
-          subDomain: data.subDomain,
-          address: data.address,
-          contact: data.contact,
-          bank: data.bank,
-          signDate: data.signDate,
-          files: {
-            bankDoc: fileUrls.bankDoc || null,
-            booksDoc: fileUrls.booksDoc || null,
-            taxDoc: fileUrls.taxDoc || null,
-            invoiceDoc: fileUrls.invoiceDoc || null,
-            affidavitDoc: fileUrls.affidavitDoc || null,
-            cashDoc: fileUrls.cashDoc || null
-          }
-        };
-        const gsResp = await fetch('https://script.google.com/macros/s/AKfycbx-uP9SpZXWgCB0hl2Ftnks_IBukekWbQ30jJBpuFDExGRbYIG2adjg5nmqHw8s9CcU/exec', { method: 'POST', body: JSON.stringify(payload) });
-        const gsData = await gsResp.json();
-        if (!gsData.success) console.warn('Apps Script error:', gsData);
-      } catch(emailErr) {
-        console.warn('Email sending failed:', emailErr);
+      const sigDataUrl = canvas ? canvas.toDataURL('image/png') : null;
+      const zip = new JSZip();
+      zip.file('supplier_details.txt', detailsTxt);
+      const labels = {'bank-upload':'bank_doc','books-upload':'books_doc','tax-upload':'tax_doc','invoice-upload':'invoice_doc','affidavit-upload':'affidavit_doc','cash-upload':'cash_doc'};
+      for (const fid of fileIds) {
+        const f = window._pendingFiles[fid];
+        if (f) {
+          const b64 = f.dataUrl.split(',')[1];
+          const ext = f.name.split('.').pop();
+          zip.file((labels[fid]||fid) + '.' + ext, b64, {base64:true});
+        }
       }
-
-      showLoading(false);
-      document.getElementById('ref-number').textContent = 'מספר פנייה: ' + docRef.id.substring(0,8).toUpperCase();
-      goToStep('success');
-
-    } catch(err) {
-      showLoading(false);
-      alert('אירעה שגיאה בשליחת הטופס: ' + err.message);
-      console.error(err);
-    }
+      if (sigDataUrl) zip.file('signature.png', sigDataUrl.split(',')[1], {base64:true});
+      const zipBase64 = await zip.generateAsync({type:'base64'});
+      const businessName = v('f-business-name') || 'supplier';
+      const payload = { action:'submitZip', businessName:businessName, zipBase64:zipBase64 };
+      const gsResp = await fetch('https://script.google.com/macros/s/AKfycbx-uP9SpZXWgCB0hl2Ftnks_IBukekWbQ30jJBpuFDExGRbYIG2adjg5nmqHw8s9CcU/exec', {method:'POST', body:JSON.stringify(payload)});
+      const gsResult = await gsResp.json();
+      showLoader(false);
+      if (gsResult.status==='ok'||gsResult.success) { showPanel('panel-success'); }
+      else { alert('Error: ' + (gsResult.message||'try again')); }
+    } catch(err) { showLoader(false); console.error(err); alert('Error: ' + err.message); }
   };
 
   function v(id) {
